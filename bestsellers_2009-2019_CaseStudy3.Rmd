@@ -1,0 +1,779 @@
+---
+title: "Bestselling Books from Amazon 2009-2019"
+author: "Jackie Keith"
+date: '2022-03-13'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# BUSINESS TASK AND STAKE HOLDERS #############################
+
+Which books will bookstore customers/library patrons (end users) want to read? Which will purchasing agents want to stock? Best-selling book lists like this one from 2009-2019 can show historical data that may predict future purchasing trends, which can inform marketing/purchasing decisions. Potential stakeholders are bookstore and library purchasing agents.
+
+
+# QUESTIONS TO EXPLORE #######################################
+
+In this eleven year period, which authors were in the top 50 for multiple years? 
+
+Who had multiple titles? 
+
+Which books were in series? (Fiction books have series titles in parentheses.)
+
+Do series books have better reviews?
+
+Does a sequel get better reviews? More reviews?
+
+Are sets more popular than single books, based on average scores?
+
+Which books appeared in more than one year? 
+
+Which were most and least expensive?
+Which authors got the best ratings for their books?
+
+Were they multiple-year authors or single-appearance on the list?
+
+Which broad genre (fiction or nonfiction) was more popular over all?
+
+How does the review score correlate with the (current) cost?
+
+Which authors, using the prices at the time of the initial scraping, had the highest total selling price?
+
+
+
+# ORIGINAL DATA #######################################
+Original Data and Issues
+
+This data is from <https://www.kaggle.com/sootersaalu/amazon-top-50-bestselling-books-2009-2019?select=bestsellers+with+categories.csv> Amazon Top 50 Best Selling Books (made available by Souter Saalu under a CC0 license): Data about Amazon's bestselling books from 2009 to 2019, categorized into fiction and nonfiction. This was dated 13/10/2020.
+
+The categories of fiction/nonfiction were gathered from Goodreads and is reported to cover 550 books.
+
+The original data had 550 rows (plus a header) and 7 columns.
+
+
+# DATA ISSUES ##########################################
+
+Issues with the data include column names, author/title/series components, spelling, punctuation, missing prices...
+
+Authors may be recorded with titles like Dr. or Rev. in same instances and not in others. They may or may not have Jr., M.D., or III listed. Initials may have spaces and punctuation or not. Any of these and names may have varying capitalization, punctuation, and spacing.
+
+Titles also have similar issues, plus some may have subtitles that share the issues of spelling, spaces, etc.
+
+Series are sometimes listed as part of the title.
+
+Prices, number of reviews, and average review score for each title are current as of 13/10/2021 (original compiler).
+As time goes by, the number of reviews changes, as does the average rating for each title and the price.
+
+
+# CLEANING STEPS WITH OPEN REFINE AND SHEETS###################
+I used Open Refine to find potential duplicates that varied in spelling, phrasing, components, then standardized to uppercase.
+I exported that Open Refine csv file and imported it into Google Sheets for more cleaning. This file <https://docs.google.com/spreadsheets/d/1FSK9s4eX4snC4-EA32KHzEO1isRWce0-I-_4EDwWHDU/edit?usp=sharing> includes the contents of each Spreadsheet tab, cleaning steps in Open Refine and Sheets, the sheets tab #3 exported for analysis in R (bestsellers_books_cleaned.csv here), and some analysis in Sheets.
+Sheets:
+1-	cleaning steps in Open Refine	
+2-	cleaning steps in Sheets	
+3-	main_bookdata_cleaned_pre_R	file after OpenRefine and cleaning in Sheets
+4-	ratings by title and author	av rating by year, genre, series
+4a- series data
+5-	unique titles from 2017-2019 (last three),unique titles from 2017-2019 (last three)
+6-	unique authors from 2017-2019 (last three), unique authors from 2017-2019 (last three)
+7-	authors listed more than once overall, or in last three years	authors listed more than once overall, or in last three years
+8- top 10 rated books. authors	top user ratings by genre, author, audience
+9-	author appearance on list	author appearance on list overall and last three years
+10-	number of words in titles by audience	number of words in titles by audience
+11-	audience	audience: adult, YA, Children
+12- average price
+13- bestsellers_original
+
+Note:
+If I did not know how to transform something in R (yet), I did it in Sheets and re-exported/imported Sheet tab 3 into R as bestselling_books_cleaned.csv.
+
+# INSTALL AND LOAD PACKAGES ################################
+```{r}
+install.packages("tidyverse")
+library(tidyverse)
+install.packages("dplyr")
+library(dplyr)
+install.packages('skimr')
+library(skimr)
+install.packages('esquisse')
+library(esquisse)
+install.packages('shiny')
+install.packages('ggplot2')
+library(ggplot2)
+install.packages("pacman")
+library(pacman)
+```
+# IMPORT DATA AND DESCRIBE #############################
+There are 551 non-heading rows and 18 columns. I added the columns
+$ Number_added                 <int> added for index order
+$ Name_orginial                <chr> will correct spelling
+$ Author                       <chr> 
+$ Reviews_count                <chr> 
+$ User_rating                  <dbl> 
+$ Price                        <chr> 
+$ Year                         <int> 
+$ Genre                        <chr> 
+$ Title_upper                  <chr> added this col and the rest
+$ Series                       <chr> 
+$ Series_number                <chr> 
+$ Author_upper                 <chr> 
+$ LastName_first_no_titlesDRJR <chr> 
+$ Audience                     <chr> 
+$ Adult_interest               <chr> 
+$ Title_word_count             <int> 
+$ Author_count_all             <int> 
+$ Authors_last_three           <int>  
+
+Note:Price needs to be numeric.
+```{r}
+library(dplyr)
+
+booksdf <- read.csv("bestselling_books_cleaned.csv")
+glimpse(booksdf)
+class(booksdf$Price) = "Numeric"
+colnames(booksdf) 
+glimpse(booksdf)
+```
+
+# FIX DISCREPANCIES ################################
+Fix column name typo
+```{r}
+library(dplyr)
+rename(booksdf, Name_original = Name_orginial)
+```
+
+I noted during cleaning that names with initials were not always entered the same way. George R. R. Martin was entered with and without a space between the Rs. I had corrected this in some fields, but not in the created column LastName-first_no_titlesDRJR. I assigned MARTIN, GEORGE R. R. to R., R. GEORGE in that column.
+I also changed the answers possible for Adult_interest to Yes and No.
+I corrected the spelling of the column name in the sheet and here: Name_orginial
+rename(booksdf23, Name_original = Name_orginial)
+
+```{r}
+booksdf$LastName_first_no_titlesDRJR[booksdf$LastName_first_no_titlesDRJR== "R., R. GEORGE"] <- "MARTIN, GEORGE R. R."
+
+booksdf$Adult_interest[booksdf$Adult_interest=="Adult"] <- "Yes"
+booksdf$Adult_interest[booksdf$Adult_interest=="Not_adult"] <- "No"
+
+booksdf$LastName_first_no_titlesDRJR[booksdf$LastName_first_no_titlesDRJR== "R., R. GEORGE"] <- "MARTIN, GEORGE R. R."
+
+glimpse(booksdf)
+```
+The Year imported into the Sheet as a double rather than a date. I assumed it was valid for the end of the Year and assigned a date to each year.  In R, I assigned the year.
+```{r}
+booksdf$Year[booksdf$Year=="12/31/2009"] <- "2009"
+booksdf$Year[booksdf$Year=="12/31/2010"] <- "2010"
+booksdf$Year[booksdf$Year=="12/31/2011"] <- "2011"
+booksdf$Year[booksdf$Year=="12/31/2012"] <- "2012"
+booksdf$Year[booksdf$Year=="12/31/2013"] <- "2013"
+booksdf$Year[booksdf$Year=="12/31/2014"] <- "2014"
+booksdf$Year[booksdf$Year=="12/31/2015"] <- "2015"
+booksdf$Year[booksdf$Year=="12/31/2016"] <- "2016"
+booksdf$Year[booksdf$Year=="12/31/2017"] <- "2017"
+booksdf$Year[booksdf$Year=="12/31/2018"] <- "2018"
+booksdf$Year[booksdf$Year=="12/31/2019"] <- "2019"
+#This was a previous version, but I wanted to note how I did it.
+head(booksdf)
+```
+The dataframe booksdf:
+
+```{r}
+
+#changed reviews to integer on import (was char.)
+dim(booksdf)
+ncol(booksdf)
+tail(booksdf)
+```
+
+
+Skimr tells me there are twp missing values from the Number_added column, which is not an issue because I no longer need it. I will remove the column.
+
+
+```{r}
+install.packages('skimr')
+library(skimr)
+skim(booksdf)
+
+```
+```{r}
+booksdf$Number_added <- NULL
+head(booksdf)
+```
+There are now 17 columns.
+
+
+```{r}
+library(dplyr)
+example <- booksdf %>% 
+  group_by(Year) %>% 
+  summarize(Audience, Genre)
+  print(example)
+
+```
+example2 shows observations grouped by Audience, then Genre and title.
+
+```{r}
+library(dplyr)
+example2 <- booksdf %>% 
+  group_by(Audience) %>% 
+  summarize(Genre, Title_upper)
+  print(example2)
+
+```
+
+
+
+
+```{r}
+booksdf %>% 
+  select(Year) %>% 
+  summary()
+```
+There are 50 items each year.
+```{r}
+booksdf %>% 
+  select(Year) %>% 
+  table()
+
+```
+550 titles entries, year entries, Genre entries (240 fiction, 310 nonfiction)          
+Year                   Genre    
+ Length:550         Length:550         Fiction    :240  
+ Class :character   Class :character   Non Fiction:310  
+ Mode  :character   Mode  :character                   
+
+
+```{r}
+install.packages("pacman")
+pacman::p_load(pacman, rio, tidyverse)
+```
+```{r}
+library(dplyr)
+df <- booksdf %>% 
+  as_tibble() %>% 
+  select(Title_upper,Year, Genre) %>% 
+  mutate(Genre = as.factor(Genre)) %>% 
+  print
+summary(df)
+```
+The quartiles listed for Year are not useful.
+# FACTORS ################################
+
+These User_rating stats are more useful.
+User_rating   
+Min.   :3.300  
+1st Qu.:4.500  
+Median :4.700  
+Mean   :4.618  
+3rd Qu.:4.800  
+Max.   :4.900
+
+```{r}
+library(dplyr)
+df_reviews<- booksdf %>% 
+  as_tibble() %>% 
+  select(Title_upper,Year, Genre, User_rating) %>% 
+  mutate(Genre = as.factor(Genre)) %>% 
+  print
+summary(df_reviews)
+
+
+
+```
+
+
+```{r}
+install.packages("pacman")
+pacman::p_load(pacman, rio, tidyverse,psych)
+```
+This shows Audience and User_rating.
+```{r}
+library(dplyr)
+df2 <- booksdf %>% 
+  as_tibble() %>%
+  select(Title_upper, 
+    Genre,
+    Audience:User_rating) %>% 
+  mutate(Genre = as.factor(Genre)) %>%
+  # rename(y = Genre) %>%
+  print()
+```
+
+The stats for just User_rating:
+ User_rating   
+ Min.   :3.300  
+ 1st Qu.:4.500  
+ Median :4.700  
+ Mean   :4.618  
+ 3rd Qu.:4.800  
+ Max.   :4.900 
+# SUMMARY ##########################################################
+
+```{r}
+library(dplyr)
+df2 %>% summary()  # Summary for entire table
+
+df2 %>%    # Summary for one variable
+  select(User_rating) %>%
+  summary()
+print(df2)
+
+```
+
+# QUARTILES ################################################
+five-number summary:
+3.3 min
+4.5 lower hinge
+4.7 median
+4.8 upper hinge
+4.9 max
+```{r}
+
+# Tukey's five-number summary: minimum, lower-hinge,
+# median, upper-hinge, maximum. No labels.
+
+fivenum(df2$User_rating)
+
+
+```
+
+
+Boxplot stats: hinges, n, CI for median, outliers
+There are outliers on the low end, but 50% of the ratings fall between 4.5 and 4.8. The median is 4.7.
+$stats
+[1] 4.1 4.5 4.7 4.8 4.9
+
+$n. number of observations
+[1] 550
+
+$conf. confidence interval level
+[1] 4.679789 4.720211
+
+$out outliers
+ [1] 3.9 3.8 3.8 3.9 3.9 4.0 4.0 4.0 4.0 4.0 4.0 4.0 4.0 4.0 4.0 4.0 4.0 4.0
+[19] 3.6 4.0 3.3
+
+```{r}
+png('output/boxplot.png')
+boxplot(df2$User_rating, notch = T, horizontal = T)
+
+```
+
+```{r}
+
+boxplot(df2$User_rating, notch = T, horizontal = T)
+
+
+```
+
+```{r}
+
+boxplot.stats(df2$User_rating)
+
+```
+
+# ALTERNATIVE DESCRIPTIVES #################################
+This shows the mean for each variable.
+```{r}
+
+pacman::p_load(psych)           # Load psych package
+pacman::p_help(psych, web = F)  # Get info on psych package
+
+describe(df2$User_rating)  # Single variable
+describe(df2)               # Entire dataframe
+```
+	
+# FILTER BY ONE VARIABLE ###################################
+
+```{r}
+library(dplyr)
+df3 <- df2 %>%
+  as_tibble() %>%
+  select(Genre,
+  Audience:User_rating) %>% 
+  mutate(Genre = as.factor(Genre)) %>%
+  # rename(y = Genre) %>%
+  print()
+
+```
+
+# FILTER BY ONE VARIABLE ###################################
+"User_rating" is a quantitative variable
+These are greater than the median 4.7.
+```{r}
+
+df2 %>%
+  filter(User_rating > 4.7) %>%
+  print()
+```
+
+
+"Audience" is a character variable
+These are of interest to Children.
+```{r}
+df2 %>%
+  filter(Audience == "CH") %>%
+  print()
+```
+These are of interest to Young Adults.
+```{r}
+df2 %>%
+  filter(Audience == "YA") %>%
+  print()
+```
+
+These are of interest to Adults.
+```{r}
+df2 %>%
+  filter(Audience == "Adult") %>%
+  print()
+```
+
+Genre is a factor. These are fiction.
+```{r}
+
+df %>%
+  filter(Genre == "Fiction") %>%
+  print()
+```
+These are nonfiction.
+```{r}
+
+df %>%
+  filter(Genre == "Non Fiction") %>%
+  print
+```
+# FILTER BY MULTIPLE VARIABLES #############################
+Fiction OR greater that 4.7 User_rating
+
+
+```{r}
+
+# "or" is the vertical pipe |
+df2 %>%
+  filter(Genre == "Ficton" | 
+      User_rating > 4.7) %>%
+  print()
+
+
+```
+Fiction AND greater that 4.7 User_rating
+```{r}
+# "and" is the ampersand &
+df2 %>%
+  filter(Genre == "Fiction" & 
+      User_rating > 4.7) %>%
+  print()
+```
+Stephenie Meyer books that are NOT Twilight
+```{r}
+# "not" is the exclamation point !
+df2%>%
+  filter(LastName_first_no_titlesDRJR == "MEYER, STEPHENIE" & 
+      !Title_upper == "TWILIGHT") %>%
+  print()
+
+```
+
+
+# ANSWERS #######################################
+Questions I set out to explore:
+In this eleven year period, which authors were in the top 50 for multiple years? 
+
+See 
+Sheet tab 14
+These are the names, times on list, years on list for those on 6 or more times. 
+
+KINNEY, JEFF	12	12
+RIORDAN, RICK	11	11
+COLLINS, SUZANNE	11	11
+CHAPMAN, GARY	11	11
+AMERICAN PSYCHOLOGICAL ASSOCIATION	10	10
+SEUSS, DR.	9	9
+GALLUP	9	9
+ROWLING, J. K.	8	8
+ELLIOTT, ROB	8	8
+PILKEY, DAV	7	7
+O'REILLY, BILL	7	7
+LARSSON, STIEG	7	7
+COVEY, R. STEPHEN	7	7
+CARLE, ERIC	7	7
+YOUNG, SARAH	6	6
+THE COLLEGE BOARD	6	6
+RUIZ, MIGUEL DON	6	6
+MEYER, STEPHENIE	7	6
+LEE, HARPER	6	6
+JAMES, L E	6	6
+
+
+
+
+Who had multiple titles? 
+Sheet 14:
+Stephenie Meyers is the only on of these with multiple books in a given year.
+
+Which books were in series? (Fiction books have series titles in parentheses.)
+383 were not in a series. (69.6%)
+
+29 (5.3%) had at least 2 in a series (possible the same series number):
+Diary of a Wimpy Kid	12
+The Hunger Games	11
+5 Love Languages	11
+Laugh-Out-Loud Jokes for Kids	8
+Harry Potter	8
+Dog Man	7
+Bill O'Reilly's Killing Series	7
+The Twilight Saga	6
+Millennium Series	5
+Fifty Shades of Grey Series	5
+A Song of Ice and Fire	5
+Thug Kitchen Cookbooks	4
+Sookie Stackhouse/True Blood	4
+Divergent Series	4
+The Kane Chronicles	3
+Percy Jackson and the Olympians	3
+Heroes of Olympus	3
+Girl, Wash Your Face	3
+Dungeons & Dragons	3
+Barefoot Contessa	3
+(Pioneer Woman)	3
+(Humans of New York)	3
+TIME-TRAVEL ADVENTURES WITH EXCEPTIONAL AMERICANS	2
+Sesame Street, Lift-the-Flap	2
+Pulitzer Prize for Fiction	2
+Millennium Trilogy	2
+Hardcover Books for Toddlers, Preschool Books for Kids	2
+Adult Coloring	2
+(Ready Player One)	2
+
+The other 32 (5.8%) were in a series, but only 1 book in the series made the list.
+
+
+Do series books have better reviews?
+The average rating is 4.6 overall, 4.6 no_series, 4.7 series
+
+
+Does a sequel get better reviews? More reviews?
+Less relevant. Most books on the list were not in series.
+
+Are sets more popular than single books, based on average scores?
+No. 4.6.
+
+Which books appeared in more than one year? 
+43 did
+These appeared 5 or more times, including in the last 3 years 2017-2019:
+
+THE 5 LOVE LANGUAGES: THE SECRET TO LOVE THAT LASTS Total	10
+PUBLICATION MANUAL OF THE AMERICAN PSYCHOLOGICAL ASSOCIATION, 6TH EDITION Total	10
+STRENGTHSFINDER 2.0 Total	9
+OH, THE PLACES YOU'LL GO! Total	8
+THE VERY HUNGRY CATERPILLAR Total	7
+THE 7 HABITS OF HIGHLY EFFECTIVE PEOPLE: POWERFUL LESSONS IN PERSONAL CHANGE Total	7
+THE FOUR AGREEMENTS: A PRACTICAL GUIDE TO PERSONAL FREEDOM Total	6
+TO KILL A MOCKINGBIRD Total	5
+GIRAFFES CAN'T DANCE Total	5
+HOW TO WIN FRIENDS & INFLUENCE PEOPLE Total	5
+FIRST 100 WORDS Total	5
+WONDER Total	5
+LAUGH-OUT-LOUD JOKES FOR KIDS Total	5
+95 titles appeared in more than one year.
+These appeared 6 or more times:
+THE 5 LOVE LANGUAGES: THE SECRET TO LOVE THAT LASTS Total		10
+PUBLICATION MANUAL OF THE AMERICAN PSYCHOLOGICAL ASSOCIATION, 6TH EDITION Total		10
+STRENGTHSFINDER 2.0 Total		9
+OH, THE PLACES YOU'LL GO! Total		8
+THE VERY HUNGRY CATERPILLAR Total		7
+THE 7 HABITS OF HIGHLY EFFECTIVE PEOPLE: POWERFUL LESSONS IN PERSONAL CHANGE Total		7
+THE FOUR AGREEMENTS: A PRACTICAL GUIDE TO PERSONAL FREEDOM Total		6
+JESUS CALLING: ENJOYING PEACE IN HIS PRESENCE Total		6
+WONDER Total		5
+UNBROKEN: A WORLD WAR II STORY OF SURVIVAL, RESILIENCE, AND REDEMPTION Total		5
+TO KILL A MOCKINGBIRD Total		5
+THE OFFICIAL SAT STUDY GUIDE Total		5
+THE FIVE DYSFUNCTIONS OF A TEAM: A LEADERSHIP FABLE Total		5
+LAUGH-OUT-LOUD JOKES FOR KIDS Total		5
+HOW TO WIN FRIENDS & INFLUENCE PEOPLE Total		5
+GIRAFFES CAN'T DANCE Total		5
+FIRST 100 WORDS Total		5
+
+
+
+Which were most and least expensive?
+mean 23.39	
+median 20.00
+
+Most:
+$105.00	DIAGNOSTIC AND STATISTICAL MANUAL OF MENTAL DISORDERS, 5TH EDITION: DSM-5
+$82.00	THE TWILIGHT SAGA COLLECTION
+$54.00	HAMILTON: THE REVOLUTION
+$53.00	THE BOOK OF BASKETBALL: THE NBA ACCORDING TO THE SPORTS GUY
+$52.00	HARRY POTTER PAPERBACK BOX SET
+$46.00	PUBLICATION MANUAL OF THE AMERICAN PSYCHOLOGICAL ASSOCIATION, 6TH EDITION
+$42.00	WATCHMEN
+$40.00	THE OFFICIAL SAT STUDY GUIDE
+$39.00	THE ALCHEMIST
+$36.00	THE OFFICIAL SAT STUDY GUIDE: Official Study Guide for the New Sat
+$32.00	A STOLEN LIFE: A MEMOIR
+	FIFTY SHADES TRILOGY
+$30.00	A GAME OF THRONES / A CLASH OF KINGS / A STORM OF SWORDS / A FEAST OF CROWS / A DANCE WITH DRAGONS
+	HARRY POTTER AND THE CHAMBER OF SECRETS: THE ILLUSTRATED EDITION
+	HARRY POTTER AND THE PRISONER OF AZKABAN: THE ILLUSTRATED EDITION
+	THE HUNGER GAMES TRILOGY BOXED SET
+	
+	Least, less relevant since prices change and used and price-reduced versions are options:
+	
+	$1.00	EAT THIS NOT THAT! SUPERMARKET SURVIVAL GUIDE: THE NO-DIET WEIGHT LOSS SOLUTION
+$2.00	A PATRIOT'S HISTORY OF THE UNITED STATES: FROM COLUMBUS'S GREAT DISCOVERY TO THE WAR ON TERROR
+	FEAR: TRUMP IN THE WHITE HOUSE
+	PERCY JACKSON AND THE OLYMPIANS PAPERBACK BOXED SET
+	THE GIRL WITH THE DRAGON TATTOO
+$3.00	A HIGHER LOYALTY: TRUTH, LIES, AND LEADERSHIP
+$4.00	ADULT COLORING BOOK DESIGNS: STRESS RELIEF COLORING BOOK: GARDEN DESIGNS, MANDALAS, ANIMALS, AND PAISLEY PATTERNS
+	CALM THE F*CK DOWN: AN IRREVERENT ADULT COLORING BOOK
+	CREATIVE HAVEN CREATIVE CATS COLORING BOOK
+	DEAD AND GONE
+	DEAD RECKONING
+	DOG MAN: BRAWL OF THE WILD: FROM THE CREATOR OF CAPTAIN UNDERPANTS
+	FIRST 100 WORDS
+	GIRAFFES CAN'T DANCE
+	HAVE A LITTLE FAITH: A TRUE STORY
+	IF ANIMALS KISSED GOOD NIGHT
+	KNOCK-KNOCK JOKES FOR KIDS
+	LAUGH-OUT-LOUD JOKES FOR KIDS
+	PUPPY BIRTHDAY TO YOU!
+	THE WONKY DONKEY
+	UNICORN COLORING BOOK: FOR KIDS AGES 4-8
+$4.70	LITTLE BLUE TRUCK
+$5.00	A WRINKLE IN TIME
+	ARGUING WITH IDIOTS: HOW TO STOP SMALL MINDS AND BIG GOVERNMENT
+	BABY TOUCH AND FEEL: ANIMALS
+	BROWN BEAR, BROWN BEAR, WHAT DO YOU SEE?
+	CREATIVE HAVEN OWLS COLORING BOOK
+	DEAR ZOO: A LIFT-THE-FLAP BOOK
+	DIFFICULT RIDDLES FOR SMART KIDS: 300 DIFFICULT RIDDLES AND BRAIN TEASERS FAMILIES WILL LOVE
+	DOVER CREATIVE HAVEN ART NOUVEAU ANIMAL DESIGNS COLORING BOOK
+	GAME OF THRONES BOXED SET: A GAME OF THRONES/A CLASH OF KINGS/A STORM OF SWORDS/A FEAST FOR CROWS
+	GOODNIGHT MOON
+	KILLING REAGAN: THE VIOLENT ASSAULT THAT CHANGED A PRESIDENCY
+	LOVE YOU FOREVER
+	P IS FOR POTTY!
+	THE GOING-TO-BED BOOK
+	THE MAGNOLIA STORY
+	THE POUT-POUT FISH
+	THE VERY HUNGRY CATERPILLAR
+	ULTIMATE STICKER BOOK: FROZEN: MORE THAN 60 REUSABLE FULL-COLOR STICKERS
+
+
+
+Which authors got the best ratings for their books?
+These got 4.9:
+YOUNG, SARAH	4.9
+TWISS, JILL	4.9
+THORPE, PATRICK	4.9
+SOUZA, PETE	4.9
+SCHERTLE, ALICE	4.9
+RINKER, DUSKEY SHERRI	4.9
+PYLE, W. NATHAN	4.9
+PILKEY, DAV	4.9
+MIRANDA, LIN-MANUEL	4.9
+MARTIN, WINFIELD EMILY	4.9
+MARTIN, BILL	4.9
+LIMBAUGH, RUSH	4.9
+GAINES, CHIP	4.9
+CARLE, ERIC	4.9
+SEUSS, DR.	4.9
+LEVIN, R. MARK	4.9
+
+Were they multiple-year authors or single-appearance on the list?
+Multi-year 9/15
+SEUSS, DR.
+PILKEY, DAV
+CARLE, ERIC
+YOUNG, SARAH
+ROWLING, J. K.
+MARTIN, WINFIELD EMILY
+RINKER, DUSKEY SHERRI
+MARTIN, BILL
+LIMBAUGH, RUSH
+
+Which broad genre (fiction or nonfiction) was more popular over all?
+4.6 overall.
+```{r}
+
+# library(esquisse)
+# esquisser(booksdf)
+```
+
+Fiction reviews are slightly higher than nonfiction reviews
+```{r}
+library(ggplot2)
+png('output/boxplot_genre_reviews.png')
+ggplot(booksdf) +
+  aes(x = User_rating, y = Genre) +
+  geom_boxplot(fill = "#112446") +
+  theme_minimal()
+```
+
+
+Which authors, using the prices at the time of the initial scraping, had the highest total selling price?
+AMERICAN PSYCHOLOGICAL ASSOCIATION Total		$460.00
+THE COLLEGE BOARD Total		$236.00
+AMERICAN PSYCHIATRIC ASSOCIATION Total		$210.00
+ROWLING, J. K. Total		$191.00
+CHAPMAN, GARY Total		$189.00
+GALLUP Total		$153.00
+COLLINS, SUZANNE Total		$147.00
+COVEY, R. STEPHEN Total		$144.00
+KINNEY, JEFF Total		$137.55
+MEYER, STEPHENIE Total		$136.79
+RIORDAN, RICK Total		$109.00
+KITCHEN, THUG Total		$92.00
+JAMES, L E Total		$92.00
+
+More details from Sheets Tab 4a_Series:
+1	Non-fiction is the largest % on the list (56% of items, 63% of sale prices).
+2	Series books are the  largest % on the list (70% of items, 70% of sale prices).
+3	Adult books are the  largest % on the list (68% of items, 75% of sale prices).
+4	Non-series, adult, non-fiction is the largest % on the list (60% of items, 68% of sale prices).
+5	Of the series books, children's and YA fiction is the largest % on the list (42% of items, 43% of sale prices). 
+Note: This is the only place non-adult books have a better showing than adult books.
+6	Of the non-series books, non-fiction is the largest % on the list (65% of items, 75% of sale prices).
+7	Of the series books, fiction is the largest % on the list (64% of items, 66% of sale prices).
+Of the books that got at or above the median rating of 4.7, 59% were children's/YA books. 65% were fiction. People who rated these books rated children's/YA books higher and fiction books higher, although our data shows non-fiction adult books have a higher % of times on the list and of the sum of sales prices.
+
+# INSIGHTS #######################################
+Trends in book sales can inform future book-buying/marketing by purchasing agents. This report is based on the sum of single book or book set prices on the bestseller lists 2009-2019, when scraped (fall 2020) prices. It does not take into consideration sales data.
+
+Overall, choose books that are non-fiction, adult-interest, and not in a series.
+
+Fiction and nonfiction are close in percentage published, but reviews are slightly more positive for fiction books, so research on specific fiction genres and nonfiction subjects would be beneficial. See boxplot:
+
+```{r}
+
+library(ggplot2)
+ggplot(booksdf) +
+  aes(x = User_rating, y = Genre) +
+  geom_boxplot(fill = "#112446") +
+  theme_minimal()
+
+```
+
+Adult books were 68.00% of the total, children's 20%, YA 12%. 
+
+This suggests buying more non-fiction for adults and more fiction, esp. series fiction for children and young adults.
+
+Note: During various stages of the pandemic, reading habits changed depending on access to books, ebooks, time to read, stress, trauma responses, so more research is needed). These years pre-dated the pandemic, so more research is needed based on 2020-2022 best selling lists. These lists did not include e-books or audio books, which are how many peolle access books.
+
+Sheets Tab 4a_Series
+1	Non-fiction is the largest % on the list (56% of items, 63% of sale prices).
+2	Series books are the  largest % on the list (70% of items, 70% of sale prices).
+3	Adult books are the  largest % on the list (68% of items, 75% of sale prices).
+4	Non-series, adult, non-fiction is the largest % on the list (60% of items, 68% of sale prices).
+5	Of the series books, children's and YA fiction is the largest % on the list (42% of items, 43% of sale prices). 
+Note: This is the only place non-adult books have a better showing than adult books.
+6	Of the non-series books, non-fiction is the largest % on the list (65% of items, 75% of sale prices).
+7	Of the series books, fiction is the largest % on the list (64% of items, 66% of sale prices).
+Of the books that got at or above the median rating of 4.7, 59% were children's/YA books. 65% were fiction. People who rated these books rated children's/YA books higher and fiction books higher, although our data shows non-fiction adult books have a higher % of times on the list and of the sum of sales prices.
+
+
+
